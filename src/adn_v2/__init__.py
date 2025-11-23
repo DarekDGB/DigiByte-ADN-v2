@@ -1,25 +1,36 @@
 """
 DigiByte Autonomous Defense Node v2 (ADN v2)
 
-Layer-3 defense engine in the DigiByte quantum-resistant stack:
+Layer-3 execution engine in the DigiByte quantum-resilient shield:
 
     DQSN → Sentinel AI v2 → ADN v2 → Wallet Guardian
 
-This package exposes a clean, testable API for:
-- receiving signals from Sentinel AI v2 and Wallet Guardian
-- evaluating chain + wallet risk
-- deciding which network & node-level defenses to activate
+This package exposes a small, clean surface for:
+- ingesting chain / Sentinel / wallet signals
+- applying policy rules
+- producing machine-readable action plans
 """
 
-from .models import RiskLevel, SentinelSignal, GuardianSignal, DefenseDecision
-from .client import ADNClient  # will be defined below
+from .models import (
+    RiskState,
+    SentinelSignal,
+    WalletSignal,
+    ChainTelemetry,
+    PolicyDecision,
+    ActionPlan,
+)
+from .config import ADNConfig
+from .engine import ADNEngine
 
 __all__ = [
-    "RiskLevel",
+    "RiskState",
     "SentinelSignal",
-    "GuardianSignal",
-    "DefenseDecision",
-    "ADNClient",
+    "WalletSignal",
+    "ChainTelemetry",
+    "PolicyDecision",
+    "ActionPlan",
+    "ADNConfig",
+    "ADNEngine",
 ]
 
 __version__ = "0.1.0"
