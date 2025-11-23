@@ -1,17 +1,23 @@
 from __future__ import annotations
 
-from .models import DefenseDecision
+from dataclasses import asdict
+from typing import Dict, Any
+
+from .models import ActionPlan
 
 
 class ActionExecutor:
     """
-    Thin abstraction around 'real' node / infra actions.
+    Reference "executor" that simply turns ActionPlan into a dict.
 
-    In this reference skeleton it only logs intent.
-    DigiByte Core or infra scripts will plug real behaviour here.
+    Real node integrators can map this dict into RPC calls, config
+    changes, or signalling inside DigiByte Core.
     """
 
-    def apply(self, decision: DefenseDecision) -> None:
-        # In the reference skeleton we do nothing dangerous.
-        # Real implementations would call RPC, adjust config, etc.
-        print("[ADN v2] Applying decision:", decision)
+    def to_dict(self, plan: ActionPlan) -> Dict[str, Any]:
+        """
+        Convert ActionPlan into a serialisable dict.
+        """
+        data = asdict(plan)
+        # You can customise / redact fields here if needed.
+        return data
