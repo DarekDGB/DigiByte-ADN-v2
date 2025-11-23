@@ -1,42 +1,48 @@
 from __future__ import annotations
 
-from typing import Iterable
+import logging
+from typing import Optional
 
-from .config import ADNConfig, load_default_config
+from .config import ADNConfig
 from .models import (
-    ChainSnapshot,
+    ActionPlan,
+    ChainTelemetry,
     SentinelSignal,
-    GuardianSignal,
-    DefenseDecision,
+    WalletSignal,
 )
-from .policy import DefensePolicy
-from .actions import ActionExecutor
+from .policy import PolicyEngine
+
+logger = logging.getLogger(__name__)
 
 
 class ADNEngine:
     """
-    Core ADN v2 orchestration engine.
+    High-level orchestration engine for ADN v2.
 
-    1. Takes structured objects from Sentinel & Wallet Guardian
-    2. Uses DefensePolicy to decide final risk level
-    3. Hands the decision to ActionExecutor
+    It connects:
+      - chain telemetry
+      - Sentinel AI v2 signals
+      - optional Wallet Guardian signals
+
+    and produces an ActionPlan that can be executed by node operators.
     """
 
-    def __init__(
-        self,
-        config: ADNConfig | None = None,
-        executor: ActionExecutor | None = None,
-    ) -> None:
-        self.config = config or load_default_config()
-        self.policy = DefensePolicy(self.config)
-        self.executor = executor or ActionExecutor()
+    def __init__(self, config: Optional[ADNConfig] = None) -> None:
+        self.config = config or ADNConfig()
+        self.policy = PolicyEngine(self.config)
 
-    def evaluate_and_apply(
+    def evaluate(
         self,
-        chain: ChainSnapshot,
+        telemetry: ChainTelemetry,
         sentinel: SentinelSignal,
-        guardians: Iterable[GuardianSignal],
-    ) -> DefenseDecision:
-        decision = self.policy.decide(chain, sentinel, guardians)
-        self.executor.apply(decision)
-        return decision
+        wallet: Optional[WalletSignal] = None,
+    ) -> ActionPlan:
+        logger.debug(
+            "Evaluating ADN v2 state",
+            extra={
+                "height": telemetry.height,
+                "sentinel_score": sentinel.risk_score,
+                "wallet_state": getattr(wallet, "aggregated_state", None),
+            },
+        )
+        return self.policy.evaluate(telemetry, sentinel, wallet)
