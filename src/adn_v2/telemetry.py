@@ -1,18 +1,32 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Dict
+from typing import Any, Dict
+
+from .models import ChainTelemetry
 
 
-@dataclass
-class TelemetryBundle:
+def normalise_chain_telemetry(raw: Dict[str, Any]) -> ChainTelemetry:
     """
-    Normalised incoming data from DQSN + Sentinel + Wallet Guardian.
+    Convert a raw dict (from node RPC / metrics) into ChainTelemetry.
 
-    This allows different implementations to feed ADN v2 without
-    depending on their internal structures.
+    The goal is to keep this function simple, deterministic and safe.
+    Missing values fall back to conservative defaults.
     """
 
-    chain_snapshot: Dict[str, int | float]
-    sentinel_payload: Dict[str, float]
-    guardians_payload: Dict[str, float]
+    return ChainTelemetry(
+        height=int(raw.get("height", 0)),
+        difficulty=float(raw.get("difficulty", 0.0)),
+        mempool_size=int(raw.get("mempool_size", 0)),
+        avg_block_interval_sec=float(raw.get("avg_block_interval_sec", 15.0)),
+        reorg_depth=int(raw.get("reorg_depth", 0)),
+        extra={k: v for k, v in raw.items() if k not in _CORE_KEYS},
+    )
+
+
+_CORE_KEYS = {
+    "height",
+    "difficulty",
+    "mempool_size",
+    "avg_block_interval_sec",
+    "reorg_depth",
+}
