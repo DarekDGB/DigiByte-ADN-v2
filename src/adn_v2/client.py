@@ -1,51 +1,47 @@
 from __future__ import annotations
 
+import json
+from dataclasses import asdict
 from typing import Any, Dict, Optional
+from urllib.request import Request, urlopen
 
-from .config import ADNConfig
-from .engine import ADNEngine
-from .models import (
-    ActionPlan,
-    ChainTelemetry,
-    SentinelSignal,
-    WalletSignal,
-)
-from .telemetry import normalise_chain_telemetry
+from .models import PolicyDecision
 
 
 class ADNClient:
     """
-    Convenience wrapper for applications that want a single entry-point.
+    Lightweight HTTP client used by ADN nodes to talk to a central ADN service,
+    DQSN, Sentinel AI v2, or Wallet Guardian endpoints.
 
-    Typical flow:
-        client = ADNClient()
-        plan = client.evaluate(raw_chain_metrics, sentinel_payload, wallet_payload)
+    Uses only the Python standard library (urllib).
     """
 
-    def __init__(self, config: Optional[ADNConfig] = None) -> None:
-        self.config = config or ADNConfig()
-        self.engine = ADNEngine(self.config)
+    def __init__(self, base_url: str) -> None:
+        self.base_url = base_url.rstrip("/")
 
-    def evaluate(
-        self,
-        chain_metrics: Dict[str, Any],
-        sentinel_payload: Dict[str, Any],
-        wallet_payload: Optional[Dict[str, Any]] = None,
-    ) -> ActionPlan:
-        telemetry = normalise_chain_telemetry(chain_metrics)
+    def _post(self, path: str, payload: Dict[str, Any]) -> Dict[str, Any]:
+        data = json.dumps(payload).encode("utf-8")
+        req = Request(
+            f"{self.base_url}{path}",
+            data=data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urlopen(req) as resp:  # noqa: S310
+            raw = resp.read().decode("utf-8")
+        return json.loads(raw)
 
-        sentinel = SentinelSignal(
-            risk_state=sentinel_payload.get("risk_state"),
-            risk_score=float(sentinel_payload.get("risk_score", 0.0)),
-            details=sentinel_payload.get("details", {}),
+    def send_telemetry(self, telemetry: Dict[str, Any]) -> PolicyDecision:
+        response = self._post("/telemetry", {"type": "telemetry", "data": telemetry})
+        return PolicyDecision(
+            level=response["level"],
+            score=response["score"],
+            reason=response.get("reason", ""),
+            actions=response.get("actions", []),
         )
 
-        wallet: Optional[WalletSignal] = None
-        if wallet_payload is not None:
-            wallet = WalletSignal(
-                aggregated_state=wallet_payload.get("aggregated_state"),
-                wallet_ids=list(wallet_payload.get("wallet_ids", [])),
-                details=wallet_payload.get("details", {}),
-            )
+    def notify_dqsn(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return self._post("/dqsn", message)
 
-        return self.engine.evaluate(telemetry, sentinel, wallet)
+    def notify_sentinel(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        return self._post("/sentinel", message)
