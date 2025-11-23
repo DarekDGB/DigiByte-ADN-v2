@@ -1,17 +1,39 @@
 """
-Minimal HTTP interface skeleton for ADN v2.
+Placeholder HTTP server wiring for ADN v2.
 
-This keeps dependencies optional – real deployments can swap this
-for FastAPI, gRPC, or direct node integration.
+This file intentionally avoids binding to a specific web framework.
+Integrators can adapt the pattern below to FastAPI, Flask, etc.
 """
 
 from __future__ import annotations
 
+from typing import Any, Dict, Optional
 
-def run_demo_server() -> None:
-    # Intentionally tiny placeholder – we do NOT ship a real server here.
-    print("ADN v2 demo server stub – replace with real HTTP/gRPC implementation.")
+from .client import ADNClient
+from .config import ADNConfig
 
 
-if __name__ == "__main__":
-    run_demo_server()
+class ADNService:
+    """
+    Minimal, framework-agnostic service wrapper.
+
+    You can call ADNService.handle_request(...) from any HTTP handler.
+    """
+
+    def __init__(self, config: Optional[ADNConfig] = None) -> None:
+        self.client = ADNClient(config=config)
+
+    def handle_request(
+        self,
+        chain_metrics: Dict[str, Any],
+        sentinel_payload: Dict[str, Any],
+        wallet_payload: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Evaluate inputs and return an action plan as a dict.
+        """
+        plan = self.client.evaluate(chain_metrics, sentinel_payload, wallet_payload)
+        # Use ActionExecutor if you want a more opinionated mapping.
+        from .actions import ActionExecutor
+
+        return ActionExecutor().to_dict(plan)
