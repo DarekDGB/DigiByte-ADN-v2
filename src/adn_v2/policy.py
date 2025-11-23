@@ -1,98 +1,151 @@
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Optional
 
 from .config import ADNConfig
 from .models import (
-    RiskLevel,
+    ActionPlan,
+    ChainTelemetry,
+    PolicyDecision,
+    RiskState,
     SentinelSignal,
-    GuardianSignal,
-    ChainSnapshot,
-    DefenseDecision,
+    WalletSignal,
 )
 
 
-class DefensePolicy:
+def _merge_risk_state(
+    sentinel_state: RiskState,
+    wallet_state: Optional[RiskState],
+) -> RiskState:
     """
-    Pure decision-making logic for ADN v2.
+    Combine Sentinel + wallet states, taking the worst case.
+    """
 
-    It takes:
-      - Sentinel AI v2 risk
-      - Wallet Guardian risk
-      - live chain snapshot
+    if wallet_state is None:
+        return sentinel_state
 
-    and outputs a DefenseDecision without touching the network directly.
+    order = [RiskState.NORMAL, RiskState.ELEVATED, RiskState.HIGH, RiskState.CRITICAL]
+    return max(sentinel_state, wallet_state, key=lambda s: order.index(s))
+
+
+class PolicyEngine:
+    """
+    Stateless policy evaluator.
+
+    Given:
+      - config
+      - chain telemetry
+      - Sentinel AI v2 signal
+      - optional wallet-guardian signal
+
+    it produces:
+      - PolicyDecision
+      - ActionPlan (derived from the decision)
     """
 
     def __init__(self, config: ADNConfig) -> None:
-        self._cfg = config
+        self.config = config
 
-    def _combine_wallet_levels(self, guardian_signals: Iterable[GuardianSignal]) -> RiskLevel:
-        """Combine many wallet risk levels into a single view."""
-        worst = RiskLevel.NORMAL
-        order = [RiskLevel.NORMAL, RiskLevel.ELEVATED, RiskLevel.HIGH, RiskLevel.CRITICAL]
-        for signal in guardian_signals:
-            if order.index(signal.level) > order.index(worst):
-                worst = signal.level
-        return worst
+    # ---------- Public API ----------
 
-    def decide(
+    def evaluate(
         self,
-        chain: ChainSnapshot,
+        telemetry: ChainTelemetry,
         sentinel: SentinelSignal,
-        guardians: Iterable[GuardianSignal],
-    ) -> DefenseDecision:
-        wallet_level = self._combine_wallet_levels(guardians)
+        wallet: Optional[WalletSignal] = None,
+    ) -> ActionPlan:
+        decision = self._evaluate_policy(telemetry, sentinel, wallet)
+        return self._build_action_plan(decision, telemetry, sentinel, wallet)
 
-        # Map RiskLevel to numeric score
-        level_score = {
-            RiskLevel.NORMAL: 0.0,
-            RiskLevel.ELEVATED: 0.3,
-            RiskLevel.HIGH: 0.7,
-            RiskLevel.CRITICAL: 1.0,
-        }
+    # ---------- Internals ----------
 
-        wallet_score = level_score[wallet_level]
-
-        combined = (
-            sentinel.risk_score * self._cfg.sentinel_weight
-            + wallet_score * (1.0 - self._cfg.sentinel_weight)
+    def _evaluate_policy(
+        self,
+        telemetry: ChainTelemetry,
+        sentinel: SentinelSignal,
+        wallet: Optional[WalletSignal],
+    ) -> PolicyDecision:
+        # Decide effective risk state from Sentinel score + wallet state.
+        risk_state = self._score_to_state(sentinel.risk_score)
+        risk_state = _merge_risk_state(
+            risk_state, wallet.aggregated_state if wallet else None
         )
 
-        # Extra bump if we're already reorging deeper than we like
-        if chain.reorg_depth > self._cfg.max_safe_reorg_depth:
-            combined = min(1.0, combined + 0.2)
+        decision = PolicyDecision(effective_state=risk_state)
 
-        # Turn combined score back into RiskLevel
-        if combined >= 0.9:
-            final_level = RiskLevel.CRITICAL
-        elif combined >= 0.7:
-            final_level = RiskLevel.HIGH
-        elif combined >= 0.4:
-            final_level = RiskLevel.ELEVATED
+        if risk_state == RiskState.ELEVATED:
+            decision.fee_multiplier = self.config.elevated_fee_multiplier
+            decision.notes = "Elevated risk – modest fee increase."
+
+        elif risk_state == RiskState.HIGH:
+            decision.fee_multiplier = self.config.high_fee_multiplier
+            decision.hardened_mode = self.config.enable_hardened_on_high
+            decision.pqc_enforced = self.config.enable_pqc_on_high
+            decision.notes = "High risk – hardened mode + PQC (if enabled)."
+
+        elif risk_state == RiskState.CRITICAL:
+            decision.fee_multiplier = self.config.critical_fee_multiplier
+            decision.hardened_mode = self.config.enable_hardened_on_critical
+            decision.pqc_enforced = self.config.enable_pqc_on_critical
+            if self.config.global_lock_on_critical:
+                decision.notes = "Critical risk – global defensive posture."
+            else:
+                decision.notes = "Critical risk – mitigations without full lock."
+
         else:
-            final_level = RiskLevel.NORMAL
-
-        decision = DefenseDecision(
-            final_level=final_level,
-            combined_risk=combined,
-            rationale="auto-generated by DefensePolicy",
-            tags=[],
-        )
-
-        # Apply policy thresholds
-        if combined >= self._cfg.hardened_threshold:
-            decision.activate_hardened_mode = True
-            decision.tags.append("hardened-mode")
-
-        if combined >= self._cfg.pqc_threshold and self._cfg.pqc.enable_pqc_switch:
-            decision.enforce_pqc = True
-            decision.tags.append("pqc-switch")
-
-        if final_level in (RiskLevel.HIGH, RiskLevel.CRITICAL):
-            decision.tighten_peer_policy = True
-            decision.delay_new_txs = True
-            decision.broadcast_warning = True
-            decision.tags.append("network-warning")
+            decision.fee_multiplier = self.config.normal_fee_multiplier
+            decision.notes = "Normal conditions."
 
         return decision
+
+    def _score_to_state(self, score: float) -> RiskState:
+        """
+        Translate Sentinel risk_score into a coarse-grained state.
+        """
+
+        if score >= self.config.critical_threshold:
+            return RiskState.CRITICAL
+        if score >= self.config.high_threshold:
+            return RiskState.HIGH
+        if score >= self.config.elevated_threshold:
+            return RiskState.ELEVATED
+        return RiskState.NORMAL
+
+    def _build_action_plan(
+        self,
+        decision: PolicyDecision,
+        telemetry: ChainTelemetry,
+        sentinel: SentinelSignal,
+        wallet: Optional[WalletSignal],
+    ) -> ActionPlan:
+        """
+        Convert a PolicyDecision into a concrete action plan.
+        """
+
+        plan = ActionPlan(
+            decision=decision,
+            enable_pqc=decision.pqc_enforced,
+            enable_hardened_mode=decision.hardened_mode,
+        )
+
+        # Simple fee logic – integrators can extend this.
+        base_min_fee = 1.0  # sat/byte – placeholder, to be replaced by integrators
+        plan.set_min_fee_rate = base_min_fee * decision.fee_multiplier
+
+        # Example advisory message (for logs / UI / monitoring).
+        plan.broadcast_advisory = decision.notes
+
+        # Attach some context as metadata (non-consensus).
+        plan.metadata.update(
+            {
+                "telemetry_height": telemetry.height,
+                "telemetry_mempool": telemetry.mempool_size,
+                "sentinel_state": sentinel.risk_state.value,
+                "sentinel_score": sentinel.risk_score,
+                "wallet_state": wallet.aggregated_state.value
+                if wallet
+                else None,
+            }
+        )
+
+        return plan
