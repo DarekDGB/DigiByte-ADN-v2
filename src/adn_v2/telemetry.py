@@ -1,32 +1,23 @@
 from __future__ import annotations
 
+import time
 from typing import Any, Dict
 
-from .models import ChainTelemetry
+from .models import TelemetryPacket
 
 
-def normalise_chain_telemetry(raw: Dict[str, Any]) -> ChainTelemetry:
+class TelemetryAdapter:
     """
-    Convert a raw dict (from node RPC / metrics) into ChainTelemetry.
-
-    The goal is to keep this function simple, deterministic and safe.
-    Missing values fall back to conservative defaults.
+    Thin adapter that converts raw node / Sentinel / DQSN data into
+    TelemetryPacket objects understood by ADN v2.
     """
 
-    return ChainTelemetry(
-        height=int(raw.get("height", 0)),
-        difficulty=float(raw.get("difficulty", 0.0)),
-        mempool_size=int(raw.get("mempool_size", 0)),
-        avg_block_interval_sec=float(raw.get("avg_block_interval_sec", 15.0)),
-        reorg_depth=int(raw.get("reorg_depth", 0)),
-        extra={k: v for k, v in raw.items() if k not in _CORE_KEYS},
-    )
-
-
-_CORE_KEYS = {
-    "height",
-    "difficulty",
-    "mempool_size",
-    "avg_block_interval_sec",
-    "reorg_depth",
-}
+    def from_raw(self, node_id: str, raw: Dict[str, Any]) -> TelemetryPacket:
+        return TelemetryPacket(
+            node_id=node_id,
+            height=int(raw.get("height", 0)),
+            mempool_size=int(raw.get("mempool_size", 0)),
+            peer_count=int(raw.get("peer_count", 0)),
+            timestamp=float(raw.get("timestamp", time.time())),
+            extra={k: v for k, v in raw.items() if k not in {"height", "mempool_size", "peer_count", "timestamp"}},
+        )
