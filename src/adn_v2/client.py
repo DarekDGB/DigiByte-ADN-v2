@@ -1,36 +1,51 @@
 from __future__ import annotations
 
-from typing import Iterable
+from typing import Any, Dict, Optional
 
-from .config import ADNConfig, load_default_config
+from .config import ADNConfig
 from .engine import ADNEngine
 from .models import (
-    ChainSnapshot,
+    ActionPlan,
+    ChainTelemetry,
     SentinelSignal,
-    GuardianSignal,
-    DefenseDecision,
+    WalletSignal,
 )
+from .telemetry import normalise_chain_telemetry
 
 
 class ADNClient:
     """
-    High-level convenience wrapper for other projects.
+    Convenience wrapper for applications that want a single entry-point.
 
-    Example:
-
-        from adn_v2 import ADNClient
-
-        adn = ADNClient()
-        decision = adn.evaluate(chain_snapshot, sentinel_signal, guardian_signals)
+    Typical flow:
+        client = ADNClient()
+        plan = client.evaluate(raw_chain_metrics, sentinel_payload, wallet_payload)
     """
 
-    def __init__(self, config: ADNConfig | None = None) -> None:
-        self.engine = ADNEngine(config or load_default_config())
+    def __init__(self, config: Optional[ADNConfig] = None) -> None:
+        self.config = config or ADNConfig()
+        self.engine = ADNEngine(self.config)
 
     def evaluate(
         self,
-        chain: ChainSnapshot,
-        sentinel: SentinelSignal,
-        guardians: Iterable[GuardianSignal],
-    ) -> DefenseDecision:
-        return self.engine.evaluate_and_apply(chain, sentinel, guardians)
+        chain_metrics: Dict[str, Any],
+        sentinel_payload: Dict[str, Any],
+        wallet_payload: Optional[Dict[str, Any]] = None,
+    ) -> ActionPlan:
+        telemetry = normalise_chain_telemetry(chain_metrics)
+
+        sentinel = SentinelSignal(
+            risk_state=sentinel_payload.get("risk_state"),
+            risk_score=float(sentinel_payload.get("risk_score", 0.0)),
+            details=sentinel_payload.get("details", {}),
+        )
+
+        wallet: Optional[WalletSignal] = None
+        if wallet_payload is not None:
+            wallet = WalletSignal(
+                aggregated_state=wallet_payload.get("aggregated_state"),
+                wallet_ids=list(wallet_payload.get("wallet_ids", [])),
+                details=wallet_payload.get("details", {}),
+            )
+
+        return self.engine.evaluate(telemetry, sentinel, wallet)
