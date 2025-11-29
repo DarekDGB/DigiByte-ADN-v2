@@ -1,5 +1,7 @@
 # 🛡 DigiByte Autonomous Defense Node v2 (ADN v2)
 
+Status: **v2 reference implementation – experimental**
+
 ### *Layer 3 — Node-Level Reflex & Lockdown Engine*
 
 ## 1. Project Intent
