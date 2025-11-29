@@ -12,15 +12,9 @@ class RiskLevel(str, Enum):
     CRITICAL = "critical"
 
 
-class RiskState(RiskLevel):
-    """
-    Backwards-compatible alias for RiskLevel.
-
-    Older ADN v2 modules (e.g. validator) import RiskState, but the new
-    defense logic standardises on RiskLevel. We subclass here so those
-    imports continue to work without changing behaviour.
-    """
-    pass
+# Backwards-compatible alias for RiskLevel so older modules that import
+# `RiskState` continue to work without any behaviour change.
+RiskState = RiskLevel
 
 
 @dataclass
