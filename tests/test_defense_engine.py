@@ -1,11 +1,11 @@
-from adn_v2.models import (
+from src.adn_v2.models import (
     DefenseEvent,
     NodeDefenseConfig,
     LockdownState,
     RiskLevel,
 )
-from adn_v2.engine import evaluate_defense
-from adn_v2.actions import build_rpc_policy_from_state
+from src.adn_v2.engine import evaluate_defense
+from src.adn_v2.actions import build_rpc_policy_from_state
 
 
 def test_defense_flow_partial_lockdown():
