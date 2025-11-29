@@ -9,21 +9,40 @@ from .models import (
 )
 
 
+"""
+RiskValidator – ADN v2 reference validator
+
+This module provides the minimal telemetry → risk translation used by
+the Autonomous Defense Node (ADN) pipeline.
+
+Projects depending on ADN v2 can subclass / replace this validator
+to implement more sophisticated threat scoring without modifying the
+core engine.
+"""
+
+
 class RiskValidator:
     """
-    Minimal v2 RiskValidator.
+    Minimal reference validator for ADN v2.
 
-    Converts TelemetryPacket → list[RiskSignal]
+    It inspects TelemetryPacket fields and produces a list of
+    RiskSignal entries. The logic is intentionally simple:
+    - low peer count → elevated risk
+    - large mempool spike → high risk
+    - otherwise → normal baseline
 
-    This keeps the engine pipeline functional without introducing
-    advanced scoring logic yet. Perfect for v2 tests.
+    This keeps v2 tests and CI clean while providing a realistic
+    entry point for future expansion.
     """
 
     def derive_signals(self, packet: TelemetryPacket) -> List[RiskSignal]:
         signals: List[RiskSignal] = []
 
-        # --- Simple heuristics for v2 ---
-        # More peers = safer, fewer peers = mild risk
+        # ---------------------------
+        # Simple heuristics for v2
+        # ---------------------------
+
+        # Very low peer connectivity → mild/elevated risk
         if packet.peer_count < 2:
             signals.append(
                 RiskSignal(
@@ -34,7 +53,7 @@ class RiskValidator:
                 )
             )
 
-        # Large mempool spike could signal congestion or attack pattern
+        # Mempool spike → potential congestion / attack pattern
         if packet.mempool_size > 20000:
             signals.append(
                 RiskSignal(
@@ -45,7 +64,7 @@ class RiskValidator:
                 )
             )
 
-        # If no obvious risk → emit NORMAL
+        # No notable anomalies → baseline “normal” signal
         if not signals:
             signals.append(
                 RiskSignal(
