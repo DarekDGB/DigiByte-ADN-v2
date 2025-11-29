@@ -10,9 +10,15 @@ from .models import (
 
 def build_rpc_policy_from_state(state: NodeDefenseState) -> Dict[str, Any]:
     """
-    Convert NodeDefenseState → RPC policy dict.
+    Convert a NodeDefenseState into a JSON-friendly RPC policy.
 
-    Used by tests and by ADN v2 to apply lockdown / throttling.
+    This helper is designed for gateways or config templates: it exposes
+    simple flags such as:
+        - rpc_enabled
+        - rpc_rate_limit
+        - notes (why lockdown is active)
+
+    The tests depend on this function returning clean + predictable output.
     """
     # NORMAL mode
     if state.lockdown_state == "NONE" or state.lockdown_state.name == "NONE":
@@ -26,7 +32,7 @@ def build_rpc_policy_from_state(state: NodeDefenseState) -> Dict[str, Any]:
     if state.lockdown_state.name == "PARTIAL":
         return {
             "rpc_enabled": True,
-            "rpc_rate_limit": 100,   # simple throttle
+            "rpc_rate_limit": 100,  # simple throttle
             "notes": ["PARTIAL_LOCKDOWN"],
         }
 
@@ -48,9 +54,12 @@ def build_rpc_policy_from_state(state: NodeDefenseState) -> Dict[str, Any]:
 
 class ActionExecutor:
     """
-    v2 minimal executor — used only to flag state changes.
+    Executes concrete side-effects for ADN decisions.
 
-    No real RPC calls, no side effects.
+    The reference implementation is intentionally minimal — it only marks
+    in-memory state (e.g., hardened=True). In production, node operators
+    could subclass this to integrate firewalls, RPC gateways, or external
+    orchestration systems.
     """
 
     def __init__(self, node_id: str) -> None:
@@ -58,9 +67,11 @@ class ActionExecutor:
 
     def execute(self, decision, context: Dict[str, Any]) -> None:
         """
-        Attach decision → node_state context dict.
+        Apply a PolicyDecision to node_state context.
 
-        In v2 tests, we only mark hardened_mode for FULL lockdown.
+        For v2 tests:
+        - If decision.level == CRITICAL → hardened_mode is set.
+        No real RPC calls, no external effects.
         """
         node_state: Dict[str, Any] = context.get("node_state", {})
 
