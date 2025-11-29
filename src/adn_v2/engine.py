@@ -1,12 +1,29 @@
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from .actions import ActionExecutor
-from .models import NodeState, PolicyDecision, RiskSignal, TelemetryPacket
+from .models import (
+    NodeState,
+    PolicyDecision,
+    RiskSignal,
+    TelemetryPacket,
+    DefenseEvent,
+    DefenseAction,
+    NodeDefenseConfig,
+    NodeDefenseState,
+    LockdownState,
+    RiskLevel,
+)
 from .policy import PolicyEngine
 from .telemetry import TelemetryAdapter
-from .validator import RiskValidator  # already created earlier
+
+# Optional legacy validator import: some older flows may use this,
+# but the v2 defense engine does not depend on it.
+try:
+    from .validator import RiskValidator  # type: ignore[attr-defined]
+except Exception:  # ImportError, AttributeError, etc.
+    RiskValidator = None  # type: ignore[assignment]
 
 
 class ADNEngine:
@@ -22,21 +39,33 @@ class ADNEngine:
         node_id: str,
         policy_engine: PolicyEngine | None = None,
         action_executor: ActionExecutor | None = None,
-        validator: RiskValidator | None = None,
+        validator: Optional["RiskValidator"] = None,
         telemetry_adapter: TelemetryAdapter | None = None,
     ) -> None:
         self.state = NodeState(node_id=node_id)
         self.policy_engine = policy_engine or PolicyEngine()
         self.action_executor = action_executor or ActionExecutor(node_id=node_id)
-        self.validator = validator or RiskValidator()
         self.telemetry_adapter = telemetry_adapter or TelemetryAdapter()
+
+        # Handle optional RiskValidator gracefully
+        if validator is not None:
+            self.validator = validator
+        elif RiskValidator is not None:
+            self.validator = RiskValidator()  # type: ignore[call-arg]
+        else:
+            # No validator available → fall back to "no-op" signals
+            self.validator = None
 
     def process_raw_telemetry(self, raw: Dict[str, object]) -> PolicyDecision:
         packet = self.telemetry_adapter.from_raw(self.state.node_id, raw)
         return self.process_packet(packet)
 
     def process_packet(self, packet: TelemetryPacket) -> PolicyDecision:
-        signals: List[RiskSignal] = self.validator.derive_signals(packet)
+        if self.validator is not None:
+            signals: List[RiskSignal] = self.validator.derive_signals(packet)  # type: ignore[call-arg]
+        else:
+            signals = []
+
         decision = self.policy_engine.decide(signals)
         context: Dict[str, object] = {"packet": packet, "node_state": {}}
         self.action_executor.execute(decision, context)
@@ -44,17 +73,6 @@ class ADNEngine:
             self.state.hardened_mode = True
         self.state.last_decision = decision
         return decision
-
-from typing import List, Optional
-
-from .models import (
-    DefenseEvent,
-    DefenseAction,
-    NodeDefenseConfig,
-    NodeDefenseState,
-    LockdownState,
-    RiskLevel,
-)
 
 
 def evaluate_defense(
