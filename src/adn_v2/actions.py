@@ -98,3 +98,40 @@ class ActionExecutor:
             decision.score,
         )
         return "wallet guardian notified"
+
+# --- v2 RPC / node-guard helpers -------------------------------------------
+
+from typing import Dict
+from .models import NodeDefenseState, LockdownState
+
+
+def build_rpc_policy_from_state(state: NodeDefenseState) -> Dict[str, object]:
+    """
+    Translate the current NodeDefenseState into a simple RPC / node policy.
+
+    This does NOT actually change any live node config. It just describes
+    what a node operator or integration script *could* apply.
+    """
+    # default: everything open (normal mode)
+    policy: Dict[str, object] = {
+        "rpc_enabled": True,
+        "allow_withdrawals": True,
+        "rpc_rate_limit": None,   # None = unlimited
+        "notes": [],
+    }
+
+    if state.lockdown_state is LockdownState.FULL:
+        policy["rpc_enabled"] = False
+        policy["allow_withdrawals"] = False
+        policy["notes"].append("FULL_LOCKDOWN: disable RPC + withdrawals")
+
+    elif state.lockdown_state is LockdownState.PARTIAL:
+        policy["rpc_enabled"] = True
+        policy["allow_withdrawals"] = True
+        policy["rpc_rate_limit"] = 100  # example throttle; tune per-node
+        policy["notes"].append("PARTIAL_LOCKDOWN: throttle RPC")
+
+    else:
+        policy["notes"].append("NORMAL: no ADN lockdown active")
+
+    return policy
