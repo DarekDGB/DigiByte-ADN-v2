@@ -1,195 +1,227 @@
-# 🛡 DigiByte Autonomous Defense Node v2 (ADN v2)
-
-Status: **v2 reference implementation – experimental**
-
-### *Layer 3 — Node-Level Reflex & Lockdown Engine*
-
-## 1. Project Intent
-
-ADN v2 is **not** a consensus or wallet implementation.  
-It is a **node-side defense layer** that sits *next to* a DigiByte full node and makes **local protection decisions** based on telemetry and security signals.
-
-Where Sentinel AI v2 and DQSN v2 focus on *detection* and *network-wide scoring*,  
-**ADN v2 is the reflex system**:
-
-- receives signals about abnormal behaviour (RPC abuse, Sentinel alerts, DQSN critical events, wallet spikes)  
-- evaluates local risk  
-- decides how hard the node should defend itself  
-- suggests a concrete **RPC lockdown / throttling policy**
-
-All upgrades to DigiByte consensus, mining rules, and cryptography remain the responsibility of **DigiByte Core (C++)** and the wider community.  
-ADN v2 is an **external defense controller**, not a hard fork.
+# ⚔️ ADN v2 — Active Defence Network
+### *Tactical Response & Defence Orchestration Layer of the DigiByte Quantum Shield*
+**Architecture by @DarekDGB — MIT Licensed**
 
 ---
 
-## 2. High-Level Architecture (v2)
+## 🚀 Purpose
 
-ADN v2 is built as a simple, testable pipeline:
+**ADN v2 (Active Defence Network)** is the **tactical brain** of the DigiByte Quantum Shield.
 
-### **1. Telemetry Adapter**
-- Converts raw node stats into a `TelemetryPacket`
-- Fields: height, mempool size, peer count, timestamp, extra
+Where:
 
-### **2. Risk Validator (v2)**
-- Converts `TelemetryPacket` → list of `RiskSignal` objects  
-- Simple v2 heuristics (low peers, large mempool = higher risk)
+- **DQSN v2** measures the network’s health  
+- **Sentinel AI v2** detects and scores threats  
 
-### **3. Policy Engine**
-- Reads `RiskSignal` entries  
-- Produces a `PolicyDecision` (risk level, score, actions)
+**ADN v2** decides *how to respond*.
 
-### **4. Action Executor**
-- Translates `PolicyDecision` into side effects  
-- Reference repo: only updates in-memory state  
-- Production examples: RPC firewall, cooldowns, alerts, dashboards
+It does this by:
 
-### **5. Defense Engine (v2)**
-- Secure-event pipeline:
-  - input: list of `DefenseEvent`
-  - output: updated `NodeDefenseState`
-  - state includes:
-    - `risk_level`
-    - `lockdown_state`
-    - `active_events`
-    - `last_actions`
+- fusing risk signals  
+- mapping them to defence playbooks  
+- emitting structured recommendations and alerts  
+- coordinating responses across wallets, nodes, and infrastructure
+
+ADN is **advisory only** — it **does not change DigiByte consensus**.  
+It provides **tactical intelligence**, not protocol rules.
 
 ---
 
-## 3. v2 Defense Models
+# 🛡️ Position in the 5-Layer DigiByte Quantum Shield
 
-Core dataclasses and enums:
-
-- **RiskLevel** — `NORMAL`, `ELEVATED`, `HIGH`, `CRITICAL`
-- **LockdownState** — `NONE`, `PARTIAL`, `FULL`
-- **DefenseEvent** — e.g. `rpc_abuse`, `sentinel_alert`, `dqsn_critical`
-- **NodeDefenseConfig** — thresholds and knobs  
-- **DefenseAction** — `ENTER_PARTIAL_LOCKDOWN`, `ENTER_FULL_LOCKDOWN`, `LIFT_LOCKDOWN`
-- **NodeDefenseState** — node risk, lockdown mode, events, actions
-
-Legacy `RiskState` remains supported through a compatibility alias.
-
----
-
-## 4. Defense Engine Flow
-
-Main function:
-
-```python
-from adn_v2.engine import evaluate_defense
 ```
-
-Process:
-
-1. Collect events
-2. Evaluate with `evaluate_defense`
-3. Update node defense state
-4. Produce actions + lockdown mode
-
-Severity → lockdown mapping:
-
-- `>= lockdown_threshold` → `CRITICAL` + **FULL lockdown**
-- `>= partial_lock_threshold` → `ELEVATED` + **PARTIAL lockdown**
-- otherwise → `NORMAL`
-
----
-
-## 5. RPC Policy Builder
-
-Helper:
-
-```python
-from adn_v2.actions import build_rpc_policy_from_state
-```
-
-Returns:
-
-```python
-{
-    "rpc_enabled": bool,
-    "rpc_rate_limit": Optional[int],
-    "notes": List[str],
-}
-```
-
-Examples:
-
-| Lockdown | rpc_enabled | rate_limit | notes |
-|---------|-------------|------------|--------|
-| NONE | True | None | NORMAL |
-| PARTIAL | True | 100 | PARTIAL_LOCKDOWN |
-| FULL | False | 0 | FULL_LOCKDOWN |
-
----
-
-## 6. Functional Testing (v2)
-
-CI includes:
-
-- ✔ import tests  
-- ✔ basic policy tests  
-- ✔ **functional defense engine test**  
-  - partial lockdown  
-  - full lockdown  
-  - policy correctness  
-
-Runs automatically via GitHub Actions.
-
----
-
-## 7. Example: Minimal Defense Flow
-
-```python
-from adn_v2.models import DefenseEvent, NodeDefenseConfig
-from adn_v2.engine import evaluate_defense
-from adn_v2.actions import build_rpc_policy_from_state
-
-events = [
-    DefenseEvent(event_type="rpc_abuse", severity=0.7, source="local"),
-    DefenseEvent(event_type="sentinel_alert", severity=0.6, source="sentinel"),
-]
-
-config = NodeDefenseConfig()
-state = evaluate_defense(events, config)
-
-policy = build_rpc_policy_from_state(state)
-
-print("ADN Defense State:", state)
-print("Suggested RPC Policy:", policy)
+ ┌───────────────────────────────────────────────┐
+ │           Guardian Wallet                     │
+ │  User-side rules & defence policies           │
+ └───────────────────────────────────────────────┘
+                     ▲
+                     │   (defence recommendations)
+ ┌───────────────────────────────────────────────┐
+ │       Quantum Wallet Guard (QWG)              │
+ │  Tx vetting • PQC checks • runtime guard      │
+ └───────────────────────────────────────────────┘
+                     ▲
+                     │   (playbook outputs)
+ ┌───────────────────────────────────────────────┐
+ │                ADN v2                         │
+ │  Active Defence Network – tactics & routing   │
+ └───────────────────────────────────────────────┘
+                     ▲
+                     │   (risk vectors & alerts)
+ ┌───────────────────────────────────────────────┐
+ │             Sentinel AI v2                    │
+ │  Telemetry analytics & anomaly detection      │
+ └───────────────────────────────────────────────┘
+                     ▲
+                     │   (raw health metrics)
+ ┌───────────────────────────────────────────────┐
+ │            DQSN v2                            │
+ │  Network entropy & health telemetry           │
+ └───────────────────────────────────────────────┘
 ```
 
 ---
 
-## 8. Role Inside the 5-Layer Quantum Shield
+# 🎯 Core Mission
 
-ADN v2 = **Layer 3**:
+### ✓ Fuse Threat Intelligence  
+ADN ingests:
 
-1. Sentinel AI v2 — detection  
-2. DQSN v2 — global scoring  
-3. **ADN v2 — reflex & lockdown**  
-4. Guardian Wallet v2 — withdrawal / UTXO protections  
-5. Quantum Wallet Guard — future wallet hardening  
+- network health metrics from **DQSN v2**
+- anomaly and threat scores from **Sentinel AI v2**
 
-ADN v2 listens upward and defends downward.
+and produces a **consolidated defence view**.
+
+### ✓ Select Defence Playbooks  
+Based on threat class and severity, ADN chooses:
+
+- which playbook to activate  
+- which targets (nodes / wallets / services) are relevant  
+- which signals to emit
+
+### ✓ Orchestrate Multi-Layer Responses  
+ADN routes:
+
+- alerts and hints to **QWG & Guardian Wallet**  
+- infrastructure suggestions to node operators and tooling  
+- monitoring hooks to dashboards and SIEMs
+
+### ✓ Stay Consensus-Neutral  
+ADN is **not a governance layer** and **never** modifies DigiByte rules.
 
 ---
 
-## 9. Non‑Goals
+# 🧠 Threat & Response Model
 
-ADN v2 does **not**:
+ADN reasons in terms of:
 
-- alter consensus
-- change block validation rules
-- manage private keys
-- guarantee complete security
+1. **Threat Class**  
+   - reorg attempts  
+   - eclipse / partition attacks  
+   - hashrate dominance  
+   - mempool flooding / spam  
+   - timestamp manipulation  
+   - propagation instability  
 
-It is a **reference defense module** for nodes.
+2. **Severity**  
+   - informational  
+   - low  
+   - medium  
+   - high  
+   - critical  
+
+3. **Context**  
+   - regional effects  
+   - duration  
+   - correlation with other anomalies  
+
+4. **Playbook**  
+   - which defence strategy applies  
+   - which outputs to generate  
+   - which layer should act (QWG / Guardian / Infra)
 
 ---
 
-## 10. License & Attribution
+# 🧩 Internal Architecture (Reference)
 
-Released under the **MIT License**.
+```
+adn_v2/
+│
+├── inputs/
+│     ├── dqs_stream.py
+│     ├── sentinel_stream.py
+│     └── config_loader.py
+│
+├── fusion/
+│     ├── risk_fusion.py
+│     ├── context_builder.py
+│     └── severity_classifier.py
+│
+├── playbooks/
+│     ├── reorg_playbook.py
+│     ├── eclipse_playbook.py
+│     ├── hashrate_playbook.py
+│     ├── mempool_playbook.py
+│     └── generic_safe_mode.py
+│
+├── routing/
+│     ├── qwg_router.py
+│     ├── guardian_router.py
+│     ├── infra_router.py
+│     └── audit_log.py
+│
+└── utils/
+      ├── types.py
+      ├── config.py
+      └── logging.py
+```
 
-**Author: DarekDGB**
+---
 
-Adaptations, forks, and downstream implementations for other blockchains are welcome under MIT terms.
+# 📡 Data Flow Overview
+
+```
+[DQSN v2 Health Metrics]      [Sentinel AI v2 Alerts]
+           │                         │
+           └──────► [ADN Inputs] ◄───┘
+                        │
+                  [Risk Fusion]
+                        │
+             [Threat & Severity Model]
+                        │
+                 [Playbook Engine]
+                        │
+         ┌──────────────┼────────────────┐
+         ▼              ▼                ▼
+   [QWG Router]   [Guardian Router]   [Infra Router]
+```
+
+---
+
+# 🛡️ Security & Design Principles
+
+1. **Advisory, Not Authoritarian**  
+2. **Explainability**  
+3. **Minimal Assumptions**  
+4. **Fail-Safe Behaviour**  
+5. **Composable Playbooks**  
+6. **Interoperable Outputs**
+
+---
+
+# ⚙️ Code Status
+
+ADN v2 provides a structured, modular Python architecture designed for:
+
+- extending defensive playbooks  
+- orchestrating network responses  
+- integrating with QWG & Guardian Wallet  
+- threat simulation  
+- safe community development  
+
+---
+
+# 🧪 Tests
+
+Tests verify:
+
+- module imports  
+- data flow structure  
+- deterministic behaviour under mock inputs  
+
+---
+
+# 🤝 Contribution Policy
+
+See `CONTRIBUTING.md`.
+
+- Improvements welcome  
+- No architecture removal  
+- ADN must **never** become a consensus layer  
+
+---
+
+# 📜 License
+
+MIT License  
+© 2025 **DarekDGB**
