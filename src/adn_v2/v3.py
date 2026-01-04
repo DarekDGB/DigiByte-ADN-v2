@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 import time
+import json
 
 from .models import DefenseEvent, NodeDefenseConfig, NodeDefenseState, RiskLevel, LockdownState
 from .engine import evaluate_defense
@@ -27,6 +28,10 @@ class ADNv3:
 
     COMPONENT: str = "adn"
     CONTRACT_VERSION: int = 3
+
+    # Abuse-prevention caps (contract-level)
+    MAX_EVENTS: int = 200
+    MAX_METADATA_BYTES: int = 16_384  # 16KB
 
     def evaluate(self, request: Dict[str, Any]) -> Dict[str, Any]:
         start = time.time()
@@ -131,8 +136,11 @@ class ADNv3:
     # Parsing / mapping helpers
     # -------------------------
 
-    @staticmethod
-    def _parse_events(raw_events: List[Dict[str, Any]]) -> List[DefenseEvent]:
+    def _parse_events(self, raw_events: List[Dict[str, Any]]) -> List[DefenseEvent]:
+        # Oversize protection: cap number of events
+        if len(raw_events) > self.MAX_EVENTS:
+            raise ValueError(ReasonCode.ADN_ERROR_OVERSIZE.value)
+
         events: List[DefenseEvent] = []
         allowed_event_keys = {"event_type", "severity", "source", "metadata"}
 
@@ -161,6 +169,17 @@ class ADNv3:
                 metadata = {}
             if not isinstance(metadata, dict):
                 raise ValueError(ReasonCode.ADN_ERROR_INVALID_REQUEST.value)
+
+            # Oversize protection: cap metadata encoded size (deterministic)
+            try:
+                meta_bytes = len(
+                    json.dumps(metadata, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+                )
+            except Exception:
+                raise ValueError(ReasonCode.ADN_ERROR_INVALID_REQUEST.value)
+
+            if meta_bytes > self.MAX_METADATA_BYTES:
+                raise ValueError(ReasonCode.ADN_ERROR_OVERSIZE.value)
 
             events.append(
                 DefenseEvent(
