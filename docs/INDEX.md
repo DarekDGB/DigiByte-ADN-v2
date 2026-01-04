@@ -50,6 +50,7 @@ They remain available for reference and historical context, but **do not define 
 
 Location:
 docs/legacy/
+
 Includes:
 - `architecture.md`
 - `defense_flow.md`
