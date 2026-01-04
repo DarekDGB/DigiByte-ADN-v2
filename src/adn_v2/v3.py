@@ -134,9 +134,16 @@ class ADNv3:
     @staticmethod
     def _parse_events(raw_events: List[Dict[str, Any]]) -> List[DefenseEvent]:
         events: List[DefenseEvent] = []
+        allowed_event_keys = {"event_type", "severity", "source", "metadata"}
+
         for e in raw_events:
             if not isinstance(e, dict):
                 raise ValueError(ReasonCode.ADN_ERROR_INVALID_REQUEST.value)
+
+            # Event-level unknown key rejection (fail-closed)
+            unknown = set(e.keys()) - allowed_event_keys
+            if unknown:
+                raise ValueError(ReasonCode.ADN_ERROR_EVENT_UNKNOWN_KEY.value)
 
             # Minimal required schema for v3 events (strict enough to be audit-friendly)
             event_type = e.get("event_type")
@@ -163,6 +170,7 @@ class ADNv3:
                     metadata=metadata,
                 )
             )
+
         return events
 
     @staticmethod
