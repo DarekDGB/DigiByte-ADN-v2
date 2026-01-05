@@ -1,23 +1,38 @@
-name: ADN v2 tests
-on: [push]
+name: ADN Tests (v3)
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+
+permissions:
+  contents: read
 
 jobs:
-  test:
+  tests:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: ${{ matrix.python-version }}
 
-      - name: Install dependencies
+      - name: Install test dependencies
         run: |
-          pip install pytest
+          python -m pip install --upgrade pip
+          python -m pip install pytest
 
-      - name: Run tests
+      - name: Run test suite
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
         run: |
-          pytest -v
+          pytest -q
