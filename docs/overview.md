@@ -1,7 +1,10 @@
-# DigiByte ADN v2 — Overview
+# DigiByte Active Defense Network v2 — Overview
 
-The **Autonomous Defense Node v2 (ADN v2)** is Layer 3 of the DigiByte Quantum Shield Network.  
+The **Active Defense Network v2 (ADN v2)** is Layer 3 of the DigiByte Quantum Shield Network.  
 Its purpose is to provide **local, autonomous, real-time defense** for DigiByte full nodes without modifying consensus.
+
+> **Legacy note:** Earlier drafts expanded ADN as “Autonomous Defense Node”.  
+> The canonical and correct name is **Active Defense Network**.
 
 ## 🚀 Purpose
 ADN v2 acts as a **reflex system**:
