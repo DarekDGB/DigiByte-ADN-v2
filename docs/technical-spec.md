@@ -1,8 +1,8 @@
-# DigiByte Autonomous Defense Node v2 – Technical Specification
+# DigiByte Active Defense Network v2 – Technical Specification
 
 ## 1. Overview
 
-**Autonomous Defense Node v2 (ADN v2)** is the upgraded Layer‑3 engine of the DigiByte quantum‑resistant security stack.  
+**Active Defense Network v2 (ADN v2)** is the upgraded Layer‑3 engine of the DigiByte quantum‑resistant security stack.  
 It runs alongside a DigiByte full node and performs three core functions:
 
 1. **Ingest telemetry** from:
@@ -14,6 +14,8 @@ It runs alongside a DigiByte full node and performs three core functions:
 
 ADN v2 is designed as a **reference implementation** – node operators can adopt it as‑is or integrate selected modules into their own infrastructure.
 
+> **Legacy note:** Earlier drafts expanded ADN as “Autonomous Defense Node”.  
+> The canonical and correct name is **Active Defense Network**.
 
 ## 2. Objectives
 
@@ -21,7 +23,6 @@ ADN v2 is designed as a **reference implementation** – node operators can adop
 - Allow **risk‑scored, real‑time reactions** to emerging quantum or network threats.
 - Support **mesh coordination** between many ADN v2 nodes without centralization.
 - Keep the implementation **simple, auditable and MIT‑licensed**.
-
 
 ## 3. Repository Layout
 
@@ -52,7 +53,6 @@ DigiByte-ADN-v2/
 
 Each module is documented in detail below.
 
-
 ## 4. Core Data Models (`models.py`)
 
 ### 4.1 RiskLevel
@@ -66,7 +66,6 @@ An `Enum` describing the normalized risk buckets used across the engine:
 
 These levels are derived from policy evaluation and/or Sentinel AI v2 scores.
 
-
 ### 4.2 TelemetryPacket
 
 A dataclass representing a single observation used for policy evaluation:
@@ -76,7 +75,6 @@ A dataclass representing a single observation used for policy evaluation:
 - `metrics`: `Dict[str, float | int | str]` – arbitrary key/value metrics.
 - `tags`: optional `Set[str]` – labels such as `"reorg"`, `"mempool_spike"`.
 
-
 ### 4.3 PolicyContext
 
 Represents the current decision context:
@@ -85,7 +83,6 @@ Represents the current decision context:
 - `score`: numeric score in `[0, 100]` summarising cumulative risk.
 - `history`: rolling window of recent `TelemetryPacket` instances.
 - `meta`: optional dictionary for implementation‑specific flags.
-
 
 ### 4.4 ActionRequest / ActionResult
 
@@ -99,7 +96,6 @@ Abstractions used between the policy engine and the action engine:
   - `success`: boolean outcome.
   - `details`: optional free‑form diagnostic information.
 
-
 ### 4.5 MeshMessage
 
 Represent messages exchanged between ADN v2 instances:
@@ -107,7 +103,6 @@ Represent messages exchanged between ADN v2 instances:
 - `message_type`: `"PING"`, `"STATUS"`, `"ALERT"`, `"POLICY_UPDATE"`, etc.
 - `payload`: JSON‑serialisable object.
 - `signature`: optional field for future authenticated messaging.
-
 
 ## 5. Configuration Layer (`config.py`)
 
@@ -134,7 +129,6 @@ Key groups:
 
 All modules receive a shared config instance so behavior is reproducible.
 
-
 ## 6. Telemetry Ingestion (`telemetry.py`)
 
 The telemetry module is responsible for collecting raw signals and emitting normalized `TelemetryPacket` instances to the engine.
@@ -160,7 +154,6 @@ The module exports a `TelemetryCollector` class with methods such as:
 
 The engine determines how often to pull telemetry and how to batch it.
 
-
 ## 7. Validation Layer (`validator.py`)
 
 The validator module performs fast sanity checks before telemetry reaches the policy engine:
@@ -176,7 +169,6 @@ It exposes at minimum:
 - `normalise_packet(packet: TelemetryPacket) -> TelemetryPacket`
 
 Packets failing validation are logged and discarded.
-
 
 ## 8. Policy Engine (`policy.py`)
 
@@ -207,7 +199,6 @@ Policy evaluation flow:
 5. Final `RiskLevel` is computed using threshold cut‑offs.
 6. Actions are suggested via `ActionRequest` objects.
 
-
 ## 9. Action Engine (`actions.py`)
 
 The action engine receives `ActionRequest` objects from the policy engine and maps them to concrete local operations.
@@ -234,7 +225,6 @@ The engine exposes:
 
 All side‑effects are confined to the local node environment; protocol‑level changes remain the responsibility of the underlying DigiByte implementation.
 
-
 ## 10. Core Engine (`engine.py`)
 
 The core engine orchestrates telemetry collection, validation, policy evaluation and action execution.
@@ -254,7 +244,6 @@ Main interface:
 
 The engine is designed to be **pure Python**, single‑process and easily testable.
 
-
 ## 11. Server & Mesh Layer (`server.py`)
 
 The server module exposes a lightweight HTTP/WebSocket or TCP JSON API for:
@@ -271,7 +260,6 @@ Responsibilities:
 
 The exact transport details are implementation‑specific; this reference keeps the protocol minimal and text‑based.
 
-
 ## 12. Client Integrations (`client.py`)
 
 The client module centralises outbound communication:
@@ -285,7 +273,6 @@ It exposes convenience helpers such as:
 - `publish_status(context: PolicyContext)`
 - `send_alert(message: MeshMessage)`
 
-
 ## 13. Command‑Line Interface (`cli.py`)
 
 The CLI module defines a `main()` function with subcommands such as:
@@ -296,7 +283,6 @@ The CLI module defines a `main()` function with subcommands such as:
 
 The CLI is intentionally thin; it delegates to `engine`, `client` and `config`.
 
-
 ## 14. Entry Point (`main.py`)
 
 `main.py` is a small bootstrap module which:
@@ -306,7 +292,6 @@ The CLI is intentionally thin; it delegates to `engine`, `client` and `config`.
 - starts the main event loop
 
 This file is the reference example for how to embed ADN v2 in external tooling.
-
 
 ## 15. Risk State Model
 
@@ -319,7 +304,6 @@ ADN v2 uses both **discrete levels** and a **continuous score**:
 
 Threshold values are configurable and can be tuned by operators.
 
-
 ## 16. Logging, Metrics and Observability
 
 All modules share a common logging setup:
@@ -330,14 +314,12 @@ All modules share a common logging setup:
 
 Optional metrics endpoints (Prometheus‑friendly) can be exposed via the server module for external dashboards.
 
-
 ## 17. Security and Hardening Considerations
 
 - ADN v2 must never be treated as a **trusted oracle** for protocol changes; it is one advisory signal among many.
 - All network endpoints must be access‑controlled and, in production, protected by TLS and authentication.
 - Operator‑facing actions (e.g. node shutdown) should include explicit confirmation or multi‑step workflows.
 - The mesh layer is designed to be compatible with future **signed messages**, but signature schemes are intentionally out of scope for this v0.1 reference.
-
 
 ## 18. Extensibility
 
