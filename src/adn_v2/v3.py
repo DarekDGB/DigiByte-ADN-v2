@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
-import time
 import json
 
 from .models import DefenseEvent, NodeDefenseConfig, NodeDefenseState, RiskLevel, LockdownState
@@ -23,6 +22,9 @@ class ADNv3:
     - fail-closed semantics
     - deterministic decision outputs (context_hash stable)
     - calls the existing v2 engine for decisions (no behavior expansion)
+
+    Glass-box invariant:
+    - contract payload must be deterministic (no timestamps / runtime timing)
     """
     config: Optional[NodeDefenseConfig] = None
 
@@ -34,7 +36,8 @@ class ADNv3:
     MAX_METADATA_BYTES: int = 16_384  # 16KB
 
     def evaluate(self, request: Dict[str, Any]) -> Dict[str, Any]:
-        start = time.time()
+        # Deterministic contract envelope: no runtime timing inside payload
+        latency_ms = 0
 
         # Strict contract parsing (fail-closed)
         try:
@@ -45,14 +48,14 @@ class ADNv3:
                 request_id=request.get("request_id", "unknown") if isinstance(request, dict) else "unknown",
                 reason_code=reason,
                 details={"error": reason},
-                latency_ms=self._latency_ms(start),
+                latency_ms=latency_ms,
             )
         except Exception:
             return self._error_response(
                 request_id=request.get("request_id", "unknown") if isinstance(request, dict) else "unknown",
                 reason_code=ReasonCode.ADN_ERROR_INVALID_REQUEST.value,
                 details={"error": "invalid request"},
-                latency_ms=self._latency_ms(start),
+                latency_ms=latency_ms,
             )
 
         # Version hard check
@@ -61,7 +64,7 @@ class ADNv3:
                 request_id=req.request_id,
                 reason_code=ReasonCode.ADN_ERROR_SCHEMA_VERSION.value,
                 details={"error": "contract_version must be 3"},
-                latency_ms=self._latency_ms(start),
+                latency_ms=latency_ms,
             )
 
         # Component hard check
@@ -70,7 +73,7 @@ class ADNv3:
                 request_id=req.request_id,
                 reason_code=ReasonCode.ADN_ERROR_INVALID_REQUEST.value,
                 details={"error": "component mismatch"},
-                latency_ms=self._latency_ms(start),
+                latency_ms=latency_ms,
             )
 
         # Map v3 events → v2 DefenseEvent objects (fail-closed)
@@ -82,7 +85,7 @@ class ADNv3:
                 request_id=req.request_id,
                 reason_code=reason,
                 details={"error": reason},
-                latency_ms=self._latency_ms(start),
+                latency_ms=latency_ms,
             )
 
         cfg = self.config or NodeDefenseConfig()
@@ -100,7 +103,7 @@ class ADNv3:
                 "component": self.COMPONENT,
                 "contract_version": self.CONTRACT_VERSION,
                 "request_id": req.request_id,
-                "events": req.events,  # original request form (stable after contract parsing)
+                "events": req.events,  # stable after contract parsing
                 "node_defense_config": self._config_fingerprint(cfg),
                 "decision": decision,
                 "risk_level": state_out.risk_level.value,
@@ -127,7 +130,7 @@ class ADNv3:
                 "active_events_count": len(state_out.active_events or []),
             },
             "meta": {
-                "latency_ms": self._latency_ms(start),
+                "latency_ms": latency_ms,
                 "fail_closed": True,
             },
         }
@@ -235,10 +238,6 @@ class ADNv3:
     # -------------------------
     # Error response
     # -------------------------
-
-    @staticmethod
-    def _latency_ms(start: float) -> int:
-        return int((time.time() - start) * 1000)
 
     def _error_response(self, request_id: str, reason_code: str, details: Dict[str, Any], latency_ms: int) -> Dict[str, Any]:
         context_hash = canonical_sha256(
