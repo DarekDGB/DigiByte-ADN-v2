@@ -47,11 +47,12 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["adn_v2*"]
+include = ["adn_v3*", "adn_v2*"]
 
 # If you later add data files under src/adn_v2/**, keep this section.
 [tool.setuptools.package-data]
 adn_v2 = ["py.typed"]
+adn_v3 = ["py.typed"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
