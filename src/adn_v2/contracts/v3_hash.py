@@ -1,16 +1,12 @@
+"""
+DEPRECATED (ADN v3 split):
+
+This module is kept only for backward compatibility.
+Authoritative v3 contract code lives in: `adn_v3.contracts.v3_hash`.
+"""
+
 from __future__ import annotations
 
-import hashlib
-import json
-from typing import Any, Dict
+from adn_v3.contracts.v3_hash import canonical_sha256
 
-
-def canonical_sha256(payload: Dict[str, Any]) -> str:
-    """
-    Deterministic hash of a JSON-like payload.
-    - stable key ordering
-    - stable separators
-    - UTF-8 encoding
-    """
-    encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
+__all__ = ["canonical_sha256"]
