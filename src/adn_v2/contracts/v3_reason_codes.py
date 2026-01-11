@@ -1,23 +1,12 @@
+"""
+DEPRECATED (ADN v3 split):
+
+This module is kept only for backward compatibility.
+Authoritative v3 contract code lives in: `adn_v3.contracts.v3_reason_codes`.
+"""
+
 from __future__ import annotations
 
-from enum import Enum
+from adn_v3.contracts.v3_reason_codes import ReasonCode
 
-
-class ReasonCode(str, Enum):
-    # success / neutral
-    ADN_OK = "ADN_OK"
-
-    # indicates "valid request produced a defensive signal" (contract-facing, minimal)
-    ADN_V2_SIGNAL = "ADN_V2_SIGNAL"
-
-    # fail-closed contract errors
-    ADN_ERROR_INVALID_REQUEST = "ADN_ERROR_INVALID_REQUEST"
-    ADN_ERROR_SCHEMA_VERSION = "ADN_ERROR_SCHEMA_VERSION"
-    ADN_ERROR_UNKNOWN_KEY = "ADN_ERROR_UNKNOWN_KEY"
-    ADN_ERROR_BAD_NUMBER = "ADN_ERROR_BAD_NUMBER"
-
-    # event-level schema hardening
-    ADN_ERROR_EVENT_UNKNOWN_KEY = "ADN_ERROR_EVENT_UNKNOWN_KEY"
-
-    # oversize / abuse prevention
-    ADN_ERROR_OVERSIZE = "ADN_ERROR_OVERSIZE"
+__all__ = ["ReasonCode"]
