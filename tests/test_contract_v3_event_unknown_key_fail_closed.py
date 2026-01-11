@@ -1,6 +1,6 @@
 from adn_v2.config import ADNConfig
-from adn_v2.v3 import ADNv3
-from adn_v2.contracts.v3_reason_codes import ReasonCode
+from adn_v3 import ADNv3
+from adn_v3.contracts.v3_reason_codes import ReasonCode
 
 
 def test_contract_v3_unknown_key_inside_event_fails_closed():
